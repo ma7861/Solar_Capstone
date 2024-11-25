@@ -14,17 +14,22 @@ class AIA_Dataset(Dataset):
 
     def __getitem__(self, idx):
         idx = int(idx)
+    
         inputs = {channel: self.ds_inputs[channel][idx]['image']['array'] for channel in self.ds_inputs}
+        input_tensor = np.concatenate([inputs[channel] for channel in sorted(inputs.keys())], axis=0)
+    
         target = self.ds_target[idx]['image']['array']
-        
-        if self.transform:
-            inputs = {channel: self.transform(image) for channel, image in inputs.items()}
-            target = self.transform(target)
-        
-        inputs = {channel: torch.tensor(image, dtype=torch.float32) for channel, image in inputs.items()}
-        target = torch.tensor(target, dtype=torch.float32)
 
-        return inputs, target
+        if self.transform:
+            input_tensor = self.transform(input_tensor)
+            target = self.transform(target)
+    
+        # Convert to tensors
+        input_tensor = torch.tensor(input_tensor, dtype=torch.float32)
+        target = torch.tensor(target, dtype=torch.float32)
+    
+        return input_tensor, target
+
 
 def filter_by_year(dataset, years, num_proc=1):
     return dataset.filter(lambda example: any(example['image']['date'].startswith(str(year)) for year in years), num_proc=num_proc)
