@@ -25,15 +25,14 @@ class AIA_Dataset(Dataset):
         idx = int(idx)
 
         # Load input channels
-        inputs = {channel: self.ds_inputs[channel][idx]['image']['array'] for channel in self.ds_inputs}
+        # inputs = {channel: self.ds_inputs[channel][idx]['image']['array'] for channel in self.ds_inputs}
 
         if self.concatenate_inputs:
-            # Concatenate all input channels into one
+            inputs = {channel: self.ds_inputs[channel][idx]['image']['array'] for channel in self.ds_inputs}
             input_tensor = np.concatenate([inputs[channel] for channel in sorted(inputs.keys())], axis=0)
         else:
-            # Keep inputs as separate channels
-            input_tensor = np.stack([inputs[channel] for channel in sorted(inputs.keys())], axis=0)
-
+            input_tensor = self.ds_inputs[self.single_channel][idx]['image']['array']
+    
         # Load target
         target = self.ds_target[idx]['image']['array']
 
@@ -68,8 +67,12 @@ def load_data_split(
         train_loader, val_loader, test_loader: DataLoader objects for train, val, and test sets.
     """
     # Load datasets
-    train_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in train_paths.items()}
-    val_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in val_paths.items()}
+    # train_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in train_paths.items()}
+    # val_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in val_paths.items()}
+    # print('train_paths', train_paths.items())
+    train_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in train_paths.items() if channel != "target"}
+    val_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in val_paths.items() if channel != "target"}
+
     train_target = load_from_disk(os.path.join(train_paths[list(train_paths.keys())[0]], "../335_train")).with_format("numpy")
     val_target = load_from_disk(os.path.join(val_paths[list(val_paths.keys())[0]], "../335_val")).with_format("numpy")
     test_target = load_from_disk(test_path).with_format("numpy")
