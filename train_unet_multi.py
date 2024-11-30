@@ -45,13 +45,6 @@ train_loader, val_loader, test_loader = load_data_split(
 )
 
 
-# Initialize U-Net model
-if args.concatenate_inputs:
-    in_channels = 1  # Single concatenated channel
-else:
-    in_channels = len(args.input_channels)  # Multiple separate channels
-
-model = BasicUNet(in_channels=in_channels, out_channels=1).to(device)
 # input_channels = len(args.input_channels)
 # print(f"Initializing model with {input_channels} input channels...")
 # model = Unet(
@@ -60,11 +53,13 @@ model = BasicUNet(in_channels=in_channels, out_channels=1).to(device)
 #     in_channels=input_channels,
 #     classes=1
 # ).to(device)
-# print("Model initialized.")
-# model = BasicUNet(
-#     in_channels=input_channels,
-#     out_channels=1
-# ).to(device)
+input_channels = len(args.input_channels) if args.concatenate_inputs else 1
+print(f"Initializing model with {input_channels} input channels...")
+
+model = BasicUNet(
+    in_channels=input_channels,
+    out_channels=1
+).to(device)
 print("Basic U-Net model initialized.")
 
 # Loss function and optimizer
@@ -84,7 +79,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         model.train()
         train_loss = 0.0
 
-        for inputs, targets in train_loader:
+        print(f"\nEpoch [{epoch+1}/{num_epochs}]")
+        for batch_idx, (inputs, targets) in enumerate(train_loader):
             inputs, targets = inputs.to(device), targets.to(device)
 
             # Forward pass
@@ -97,6 +93,10 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             optimizer.step()
 
             train_loss += loss.item()
+
+            # Log progress
+            if (batch_idx + 1) % 10 == 0:  # Log every 10 batches
+                print(f"Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
 
         avg_train_loss = train_loss / len(train_loader)
         print(f"Epoch [{epoch+1}/{num_epochs}] - Training Loss: {avg_train_loss:.4f}")
