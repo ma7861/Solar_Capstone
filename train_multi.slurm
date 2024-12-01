@@ -1,13 +1,13 @@
 #!/bin/bash
 #SBATCH --job-name=train_multi_unet           # Job name
-#SBATCH --output=multi_unet_%j.out            # Standard output
-#SBATCH --error=multi_unet_%j.err             # Standard error
+#SBATCH --output=multi_unet_171_193_335_%j.out            # Standard output
+#SBATCH --error=multi_unet_171_193_335_%j.err             # Standard error
 #SBATCH --partition=gpu                       # GPU partition
 #SBATCH --gres=gpu:1                          # Number of GPUs
 #SBATCH --ntasks=1                            # Single task
 #SBATCH --cpus-per-task=8                     # Number of CPU cores per task
 #SBATCH --mem=900G                            # Memory per node
-#SBATCH --time=24:00:00                       # Maximum runtime (24 hours)
+#SBATCH --time=24:00:00                       # Maximum runtime (50 hours)
 #SBATCH --mail-type=END,FAIL                  # Notifications for job completion and failure
 #SBATCH --mail-user=hz2291@nyu.edu            # Email for notifications
 
@@ -24,10 +24,11 @@ echo "Virtual environment activated."
 # Run the training script
 srun -u python -u train_unet_multi.py \
     --lr 0.0001 \
-    --batch_size 32 \
-    --epochs 1 \
-    --input_channels 171 193 304 \
+    --batch_size 16 \
+    --epochs 5 \
+    --input_channels 171 193 \
     --output_channel 335 \
     --data_dir "/mnt/ceph/users/manand" \
     --save_model_dir "/mnt/home/hzhu2/saved_models" \
-    --concatenate_inputs
+    --concatenate_inputs \
+    --subset_step 20

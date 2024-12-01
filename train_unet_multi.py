@@ -7,6 +7,7 @@ import os
 import time
 from load_data_multi import load_data_split
 from basic_unet import BasicUNet
+import numpy as np
 
 # Argument parsing
 # Argument parsing
@@ -19,6 +20,7 @@ parser.add_argument("--output_channel", type=str, default="335", help="Channel f
 parser.add_argument("--data_dir", type=str, default="/mnt/ceph/users/manand", help="Base folder containing train/val/test datasets")
 parser.add_argument("--save_model_dir", type=str, default="/mnt/home/hzhu2/saved_models", help="Directory to save trained models")
 parser.add_argument("--concatenate_inputs", action="store_true", help="Flag to concatenate input channels into a single tensor")
+parser.add_argument("--subset_step", type=int, default=None, help="Step size for loading a subset of the dataset")
 
 args = parser.parse_args()
 
@@ -40,9 +42,11 @@ test_path = os.path.join(args.data_dir, f"{args.output_channel}_test")
 train_loader, val_loader, test_loader = load_data_split(
     train_paths, val_paths, test_path,
     batch_size=args.batch_size,
-    concatenate_inputs=True,  # Concatenate input channels
-    output_channel=args.output_channel
+    concatenate_inputs=args.concatenate_inputs,
+    output_channel=args.output_channel,
+    subset_step=args.subset_step
 )
+
 
 
 # input_channels = len(args.input_channels)
@@ -93,10 +97,15 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             optimizer.step()
 
             train_loss += loss.item()
-
+            
             # Log progress
             if (batch_idx + 1) % 10 == 0:  # Log every 10 batches
                 print(f"Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
+                
+            # if (batch_idx + 1) % 100 == 0:
+            #     checkpoint_path = os.path.join(args.save_model_dir, f"checkpoint_epoch_{epoch+1}_batch_{batch_idx+1}.pth")
+            #     torch.save(model.state_dict(), checkpoint_path)
+            #     print(f"Model checkpoint saved at {checkpoint_path}")
 
         avg_train_loss = train_loss / len(train_loader)
         print(f"Epoch [{epoch+1}/{num_epochs}] - Training Loss: {avg_train_loss:.4f}")
