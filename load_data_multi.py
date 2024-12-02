@@ -30,8 +30,8 @@ class AIA_Dataset(Dataset):
             inputs = {channel: self.ds_inputs[channel][idx]['image']['array'] for channel in self.ds_inputs}
             input_tensor = np.concatenate([inputs[channel] for channel in sorted(inputs.keys())], axis=0)
         else:
-            input_tensor = self.ds_inputs[self.single_channel][idx]['image']['array']
-    
+            input_tensor = self.ds_inputs[list(self.ds_inputs.keys())[0]][idx]['image']['array']
+
         # Load target
         target = self.ds_target[idx]['image']['array']
 
@@ -65,50 +65,47 @@ def apply_subset_step(dataset, step):
 
 
 def load_data_split(
-    train_paths, val_paths, test_path, batch_size=32, transform=None,
-    concatenate_inputs=False, output_channel="335", subset_step=None, num_proc=1
+    paths_train=None, paths_val=None, paths_test=None, batch_size=32, transform=None,
+    concatenate_inputs=False, subset_step=None
 ):
     """
     Load training, validation, and testing datasets.
 
     Args:
-        train_paths (dict): Paths to training datasets for input channels.
-        val_paths (dict): Paths to validation datasets for input channels.
-        test_path (str): Path to testing dataset for the target channel.
+        paths_train (dict): Paths to training datasets for input channels and target channel.
+        paths_val (dict): Paths to validation datasets for input channels and target channel.
+        paths_test (dict): Paths to testing datasets for input channels and target channel.
         batch_size (int): Batch size for the DataLoader.
         transform: Transformations to apply to data.
         concatenate_inputs (bool): Whether to concatenate input channels into one.
-        output_channel (str): The channel to use as the target for testing.
         subset_step (int): Step size for selecting a subset.
-        num_proc (int): Number of processes for parallel data loading.
 
     Returns:
-        train_loader, val_loader, test_loader: DataLoader objects for train, val, and test sets.
+        Tuple containing train_loader, val_loader, test_loader (can return `None` if any is not specified).
     """
-    # Load datasets
-    train_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in train_paths.items() if channel != "target"}
-    val_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in val_paths.items() if channel != "target"}
+    loaders = []
 
-    train_target = load_from_disk(os.path.join(train_paths[list(train_paths.keys())[0]], "../335_train")).with_format("numpy")
-    val_target = load_from_disk(os.path.join(val_paths[list(val_paths.keys())[0]], "../335_val")).with_format("numpy")
-    test_target = load_from_disk(test_path).with_format("numpy")
+    for split_name, paths in [("train", paths_train), ("val", paths_val), ("test", paths_test)]:
+        if paths is None:
+            loaders.append(None)
+            continue
 
-    # Apply subset step
-    if subset_step:
-        train_inputs = {channel: apply_subset_step(ds, subset_step) for channel, ds in train_inputs.items()}
-        val_inputs = {channel: apply_subset_step(ds, subset_step) for channel, ds in val_inputs.items()}
-        train_target = apply_subset_step(train_target, subset_step)
-        val_target = apply_subset_step(val_target, subset_step)
-        test_target = apply_subset_step(test_target, subset_step)
+        # Separate input and target paths
+        input_paths = {channel: path for channel, path in paths.items() if channel != "target"}
+        target_path = paths["target"]
 
-    # Create PyTorch datasets
-    train_dataset = AIA_Dataset(train_inputs, train_target, transform=transform, concatenate_inputs=concatenate_inputs)
-    val_dataset = AIA_Dataset(val_inputs, val_target, transform=transform, concatenate_inputs=concatenate_inputs)
-    test_dataset = AIA_Dataset({output_channel: test_target}, test_target, transform=transform, concatenate_inputs=False)
+        # Load datasets
+        ds_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in input_paths.items()}
+        ds_target = load_from_disk(target_path).with_format("numpy")
 
-    # Create DataLoaders
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        # Apply subset step
+        if subset_step:
+            ds_inputs = {channel: apply_subset_step(ds, subset_step) for channel, ds in ds_inputs.items()}
+            ds_target = apply_subset_step(ds_target, subset_step)
 
-    return train_loader, val_loader, test_loader
+        # Create PyTorch dataset and DataLoader
+        dataset = AIA_Dataset(ds_inputs, ds_target, transform=transform, concatenate_inputs=concatenate_inputs)
+        loader = DataLoader(dataset, batch_size=batch_size, shuffle=(split_name == "train"))
+        loaders.append(loader)
+
+    return tuple(loaders)

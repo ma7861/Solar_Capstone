@@ -2,16 +2,14 @@ import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from segmentation_models_pytorch import Unet
 import os
 import time
+import numpy as np
 from load_data_multi import load_data_split
 from basic_unet import BasicUNet
-import numpy as np
 
 # Argument parsing
-# Argument parsing
-parser = argparse.ArgumentParser(description="Train U-Net model with explicit dataset folders")
+parser = argparse.ArgumentParser(description="Train U-Net model")
 parser.add_argument("--lr", type=float, default=0.001, help="Learning rate for optimizer")
 parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
 parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
@@ -21,61 +19,46 @@ parser.add_argument("--data_dir", type=str, default="/mnt/ceph/users/manand", he
 parser.add_argument("--save_model_dir", type=str, default="/mnt/home/hzhu2/saved_models", help="Directory to save trained models")
 parser.add_argument("--concatenate_inputs", action="store_true", help="Flag to concatenate input channels into a single tensor")
 parser.add_argument("--subset_step", type=int, default=None, help="Step size for loading a subset of the dataset")
+parser.add_argument("--checkpoint_interval", type=int, default=None, help="Interval (in batches) to save intermediate checkpoints")
 
 args = parser.parse_args()
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
-# Ensure the save directory exists
 os.makedirs(args.save_model_dir, exist_ok=True)
 
-# Paths to datasets
 train_paths = {channel: os.path.join(args.data_dir, f"{channel}_train") for channel in args.input_channels}
 train_paths["target"] = os.path.join(args.data_dir, f"{args.output_channel}_train")
 val_paths = {channel: os.path.join(args.data_dir, f"{channel}_val") for channel in args.input_channels}
 val_paths["target"] = os.path.join(args.data_dir, f"{args.output_channel}_val")
-test_path = os.path.join(args.data_dir, f"{args.output_channel}_test")
 
-# Load datasets
-# train_loader, val_loader, test_loader = load_data_split(train_paths, val_paths, test_path, batch_size=args.batch_size)
-train_loader, val_loader, test_loader = load_data_split(
-    train_paths, val_paths, test_path,
+# Load training and validation datasets
+print("Loading datasets...")
+train_loader, val_loader, _ = load_data_split(
+    paths_train=train_paths,
+    paths_val=val_paths,
+    paths_test=None,  # to prevent leakage
     batch_size=args.batch_size,
     concatenate_inputs=args.concatenate_inputs,
-    output_channel=args.output_channel,
     subset_step=args.subset_step
 )
 
-
-
-# input_channels = len(args.input_channels)
-# print(f"Initializing model with {input_channels} input channels...")
-# model = Unet(
-#     encoder_name="resnet34",
-#     encoder_weights=None,
-#     in_channels=input_channels,
-#     classes=1
-# ).to(device)
+# Model initialization
 input_channels = len(args.input_channels) if args.concatenate_inputs else 1
 print(f"Initializing model with {input_channels} input channels...")
-
-model = BasicUNet(
-    in_channels=input_channels,
-    out_channels=1
-).to(device)
-print("Basic U-Net model initialized.")
+model = BasicUNet(in_channels=input_channels, out_channels=1).to(device)
+print("Model initialized.")
 
 # Loss function and optimizer
 criterion = nn.L1Loss()  # MAE
 optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=0.01)
 
-# MAE calculation function
 def calculate_mae(gt, pred):
     return np.mean(np.abs(gt - pred))
 
 # Training loop
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs):
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, checkpoint_interval):
     start_time = time.time()
     print("Training started...")
 
@@ -97,12 +80,13 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
             optimizer.step()
 
             train_loss += loss.item()
-            
+
             # Log progress
-            if (batch_idx + 1) % 10 == 0:  # Log every 10 batches
+            if (batch_idx + 1) % 50 == 0:  # Log every 50 batches
                 print(f"Batch [{batch_idx+1}/{len(train_loader)}], Loss: {loss.item():.4f}")
-                
-            # if (batch_idx + 1) % 100 == 0:
+
+            # # Save intermediate checkpoints
+            # if (batch_idx + 1) % checkpoint_interval == 0:
             #     checkpoint_path = os.path.join(args.save_model_dir, f"checkpoint_epoch_{epoch+1}_batch_{batch_idx+1}.pth")
             #     torch.save(model.state_dict(), checkpoint_path)
             #     print(f"Model checkpoint saved at {checkpoint_path}")
@@ -110,12 +94,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         avg_train_loss = train_loss / len(train_loader)
         print(f"Epoch [{epoch+1}/{num_epochs}] - Training Loss: {avg_train_loss:.4f}")
 
-        # Validate model
+        # Validate the model
         avg_val_loss, val_mae = validate_model(model, val_loader, criterion)
         print(f"Epoch [{epoch+1}/{num_epochs}] - Validation Loss: {avg_val_loss:.4f}, MAE: {val_mae:.4f}")
 
         # Save model checkpoint
-        model_path = os.path.join(args.save_model_dir, f"unet_epoch_{epoch+1}.pth")
+        model_path = os.path.join(args.save_model_dir, f"unet_epoch_{epoch+1}_new.pth")
         torch.save(model.state_dict(), model_path)
         print(f"Model saved at {model_path}")
 
@@ -142,8 +126,12 @@ def validate_model(model, loader, criterion):
     return avg_val_loss, model_mae
 
 # Train the model
-train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=args.epochs)
-
-# # Evaluate the model
-# avg_test_loss, test_mae = validate_model(model, test_loader, criterion)
-# print(f"Test Loss: {avg_test_loss:.4f}, Test MAE: {test_mae:.4f}")
+train_model(
+    model, 
+    train_loader, 
+    val_loader, 
+    criterion, 
+    optimizer, 
+    num_epochs=args.epochs,
+    checkpoint_interval=args.checkpoint_interval
+)

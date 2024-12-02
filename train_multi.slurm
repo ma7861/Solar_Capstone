@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=train_multi_unet           # Job name
-#SBATCH --output=multi_unet_171_193_335_%j.out            # Standard output
-#SBATCH --error=multi_unet_171_193_335_%j.err             # Standard error
+#SBATCH --output=multi_unet_171_304_335_%j.out            # Standard output
+#SBATCH --error=multi_unet_171_304_335_%j.err             # Standard error
 #SBATCH --partition=gpu                       # GPU partition
 #SBATCH --gres=gpu:1                          # Number of GPUs
 #SBATCH --ntasks=1                            # Single task
@@ -26,9 +26,9 @@ srun -u python -u train_unet_multi.py \
     --lr 0.0001 \
     --batch_size 16 \
     --epochs 5 \
-    --input_channels 171 193 \
+    --input_channels 171 304 \
     --output_channel 335 \
     --data_dir "/mnt/ceph/users/manand" \
-    --save_model_dir "/mnt/home/hzhu2/saved_models" \
+    --save_model_dir "/mnt/home/hzhu2/saved_models/171_304" \
     --concatenate_inputs \
-    --subset_step 20
+    --subset_step 10
