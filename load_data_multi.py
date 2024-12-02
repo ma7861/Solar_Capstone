@@ -112,3 +112,25 @@ def load_data_split(
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
     return train_loader, val_loader, test_loader
+
+
+
+def load_data_split_2(
+    train_paths, val_paths, test_paths, batch_size=32, transform=None,
+    concatenate_inputs=False, output_channel="335", subset_step=None, num_proc=1
+):
+    
+    test_inputs = {channel: load_from_disk(path).with_format("numpy") for channel, path in test_paths.items() if channel != "target"}
+
+    
+    test_target = load_from_disk(os.path.join(test_paths[list(test_paths.keys())[0]], "../335_test")).with_format("numpy")
+
+    if subset_step:
+        test_inputs = {channel: apply_subset_step(ds, subset_step) for channel, ds in test_inputs.items()}
+        test_target = apply_subset_step(test_target, subset_step)
+
+    test_dataset = AIA_Dataset(test_inputs, test_target, transform=transform, concatenate_inputs=concatenate_inputs)
+
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+    return test_loader
