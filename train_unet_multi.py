@@ -17,7 +17,7 @@ parser.add_argument("--input_channels", type=str, nargs='+', default=["171", "19
 parser.add_argument("--output_channel", type=str, default="335", help="Channel for output (e.g., 335)")
 parser.add_argument("--data_dir", type=str, default="/mnt/ceph/users/manand", help="Base folder containing train/val/test datasets")
 parser.add_argument("--save_model_dir", type=str, default="/mnt/home/hzhu2/saved_models", help="Directory to save trained models")
-parser.add_argument("--concatenate_inputs", action="store_true", help="Flag to concatenate input channels into a single tensor")
+parser.add_argument("--concatenate_inputs", default=True, help="Flag to concatenate input channels into a single tensor")
 parser.add_argument("--subset_step", type=int, default=None, help="Step size for loading a subset of the dataset")
 parser.add_argument("--checkpoint_interval", type=int, default=None, help="Interval (in batches) to save intermediate checkpoints")
 
